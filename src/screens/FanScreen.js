@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, Dimensions, Animated } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, Dimensions, Animated, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
+import BluetoothService from '../services/BluetoothService';
 
 const { width } = Dimensions.get('window');
 
@@ -14,13 +15,36 @@ const SPEED_PRESETS = {
 const FanScreen = ({ navigation }) => {
   const [isOn, setIsOn] = useState(false);
   const [fanSpeed, setFanSpeed] = useState(0);
+  const [isConnected, setIsConnected] = useState(false);
   const spinValue = new Animated.Value(0);
+
+  useEffect(() => {
+    connectToFan();
+    return () => {
+      BluetoothService.disconnect();
+    };
+  }, []);
+
+  const connectToFan = async () => {
+    try {
+      const device = await BluetoothService.scanForDevice();
+      if (device) {
+        await BluetoothService.connectToDevice(device.id);
+        setIsConnected(true);
+        Alert.alert('Success', 'Connected to fan controller');
+      } else {
+        Alert.alert('Error', 'Fan controller not found');
+      }
+    } catch (error) {
+      Alert.alert('Error', 'Failed to connect to fan controller');
+      console.error(error);
+    }
+  };
 
   // Animation setup
   useEffect(() => {
     if (isOn) {
-      // Adjust animation duration based on fan speed - faster spinning
-      const duration = 1000 * (100 / fanSpeed); // Reduced base duration for faster spinning
+      const duration = 1000 * (100 / fanSpeed);
       Animated.loop(
         Animated.timing(spinValue, {
           toValue: 1,
@@ -39,23 +63,42 @@ const FanScreen = ({ navigation }) => {
   });
 
   const handlePowerToggle = async () => {
-    // TODO: Implement API call to Raspberry Pi
-    // POST /api/fan/power { on: !isOn }
-    if (isOn) {
-      setFanSpeed(0);
-    } else {
-      setFanSpeed(SPEED_PRESETS.MEDIUM); // Default to medium speed when turning on
+    if (!isConnected) {
+      Alert.alert('Error', 'Not connected to fan controller');
+      return;
     }
-    setIsOn(!isOn);
+
+    try {
+      const newState = !isOn;
+      await BluetoothService.sendCommand({ power: newState });
+      if (newState) {
+        setFanSpeed(SPEED_PRESETS.MEDIUM);
+      } else {
+        setFanSpeed(0);
+      }
+      setIsOn(newState);
+    } catch (error) {
+      Alert.alert('Error', 'Failed to control fan');
+      console.error(error);
+    }
   };
 
-  const handleSpeedChange = (speed) => {
-    setFanSpeed(speed);
-    if (speed > 0 && !isOn) {
-      setIsOn(true);
+  const handleSpeedChange = async (speed) => {
+    if (!isConnected) {
+      Alert.alert('Error', 'Not connected to fan controller');
+      return;
     }
-    // TODO: Implement API call to update fan speed
-    // POST /api/fan/speed { speed: speed }
+
+    try {
+      await BluetoothService.sendCommand({ speed });
+      setFanSpeed(speed);
+      if (speed > 0 && !isOn) {
+        setIsOn(true);
+      }
+    } catch (error) {
+      Alert.alert('Error', 'Failed to change fan speed');
+      console.error(error);
+    }
   };
 
   return (
@@ -69,6 +112,18 @@ const FanScreen = ({ navigation }) => {
         <TouchableOpacity>
           <Icon name="dots-vertical" size={24} color="#fff" />
         </TouchableOpacity>
+      </View>
+
+      {/* Connection Status */}
+      <View style={styles.statusContainer}>
+        <Icon 
+          name={isConnected ? "bluetooth-connected" : "bluetooth-disabled"} 
+          size={24} 
+          color={isConnected ? "#4ade80" : "#ef4444"} 
+        />
+        <Text style={[styles.statusText, { color: isConnected ? "#4ade80" : "#ef4444" }]}>
+          {isConnected ? "Connected" : "Disconnected"}
+        </Text>
       </View>
 
       {/* Fan Display */}
@@ -138,6 +193,17 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 18,
     fontWeight: '600',
+  },
+  statusContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 8,
+    gap: 8,
+  },
+  statusText: {
+    fontSize: 14,
+    fontWeight: '500',
   },
   fanContainer: {
     flex: 1,
