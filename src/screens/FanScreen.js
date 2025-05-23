@@ -53,14 +53,9 @@ const FanScreen = ({ navigation }) => {
     }
 
     try {
-      const newState = !isOn;
-      await BluetoothService.sendCommand({ power: newState });
-      if (newState) {
-        setFanSpeed(SPEED_PRESETS.MEDIUM);
-      } else {
-        setFanSpeed(0);
-      }
-      setIsOn(newState);
+      await BluetoothService.sendCommand('1');
+      setIsOn(true);
+      setFanSpeed(SPEED_PRESETS.MEDIUM);
     } catch (error) {
       Alert.alert('Error', 'Failed to control fan');
       console.error(error);

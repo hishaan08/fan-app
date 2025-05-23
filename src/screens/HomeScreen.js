@@ -86,7 +86,7 @@ const HomeScreen = ({ navigation }) => {
   const renderDeviceItem = ({ item }) => (
     <DeviceCard
       name={item.name || 'Unknown Device'}
-      icon={'bluetooth'}
+      icon={isConnected && BluetoothService.device && BluetoothService.device.id === item.id ? "bluetooth-connected" : "bluetooth-off"}
       onPress={() => handleDevicePress(item.id)}
       isConnected={isConnected && BluetoothService.device && BluetoothService.device.id === item.id}
     />

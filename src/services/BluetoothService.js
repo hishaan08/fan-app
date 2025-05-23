@@ -1,5 +1,7 @@
 import { BleManager } from 'react-native-ble-plx';
 import { Platform, PermissionsAndroid } from 'react-native';
+import { encode as btoa } from 'base-64';
+
 
 const SERVICE_UUID = '12345678-1234-5678-1234-56789ABCDEF0'; // Replace with your fan control service UUID
 const CHARACTERISTIC_UUID = 'abcdef01-1234-5678-1234-56789abcdef0'; // Replace with your fan control characteristic UUID
@@ -90,23 +92,15 @@ class BluetoothService {
     }
 
     try {
-      // Based on the current Python script, it only reacts to the string '1'.
-      // We will send '1' for now to test communication.
-      // TODO: Update this logic and the Python script to handle different commands (on/off, speed)
-      const commandToSend = '1'; // Hardcoded to match current Pi script expectation
-      const base64Command = Buffer.from(commandToSend).toString('base64'); // BLE writes often require base64
-      
-      console.log(`BluetoothService: Attempting to write \'${commandToSend}\' (Base64: ${base64Command}) to characteristic ${this.characteristicUUID} on service ${this.serviceUUID}`);
-
-      // Directly write to the known characteristic
-      await this.device.writeCharacteristicWithResponseForService(
+      // Use base-64 package for encoding
+      const base64Command = btoa(command);
+      console.log(`BluetoothService: Attempting to write '${command}' (Base64: ${base64Command}) to characteristic ${this.characteristicUUID} on service ${this.serviceUUID} using write without response.`);
+      await this.device.writeCharacteristicWithoutResponseForService(
         this.serviceUUID,
         this.characteristicUUID,
-        base64Command // Value must be Base64
+        base64Command
       );
-      
-      console.log('BluetoothService: Command sent successfully.');
-
+      console.log('BluetoothService: Command sent successfully (without response).');
     } catch (error) {
       console.error('BluetoothService: Send command error:', error);
       throw error;
