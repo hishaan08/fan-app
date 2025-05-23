@@ -15,31 +15,15 @@ const SPEED_PRESETS = {
 const FanScreen = ({ navigation }) => {
   const [isOn, setIsOn] = useState(false);
   const [fanSpeed, setFanSpeed] = useState(0);
-  const [isConnected, setIsConnected] = useState(false);
+  const [isConnected, setIsConnected] = useState(BluetoothService.isConnected);
   const spinValue = new Animated.Value(0);
 
   useEffect(() => {
-    connectToFan();
     return () => {
-      BluetoothService.disconnect();
+      // Optional: Disconnect when leaving the Fan screen, or handle app-wide disconnect
+      // BluetoothService.disconnect(); // Keep this if you want to disconnect when leaving this screen
     };
   }, []);
-
-  const connectToFan = async () => {
-    try {
-      const device = await BluetoothService.scanForDevice();
-      if (device) {
-        await BluetoothService.connectToDevice(device.id);
-        setIsConnected(true);
-        Alert.alert('Success', 'Connected to fan controller');
-      } else {
-        Alert.alert('Error', 'Fan controller not found');
-      }
-    } catch (error) {
-      Alert.alert('Error', 'Failed to connect to fan controller');
-      console.error(error);
-    }
-  };
 
   // Animation setup
   useEffect(() => {

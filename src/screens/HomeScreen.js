@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, Alert } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, Alert, FlatList } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import BluetoothService from '../services/BluetoothService';
@@ -25,47 +25,72 @@ const DeviceCard = ({ name, icon, onPress, isConnected }) => (
 const HomeScreen = ({ navigation }) => {
   const [isConnected, setIsConnected] = useState(false);
   const [isConnecting, setIsConnecting] = useState(false);
+  const [scannedDevices, setScannedDevices] = useState([]);
+  const [scanning, setScanning] = useState(false);
 
-  const devices = [
-    {
-      id: '1',
-      name: 'WindTrax',
-      icon: 'fan',
-    },
-  ];
+  const handleScanPress = async () => {
+    if (scanning) return;
 
-  const handleDevicePress = async (deviceId) => {
-    if (isConnected) {
-      // If already connected, navigate to fan control
-      navigation.navigate('Fan');
-    } else {
-      // If not connected, try to connect
-      try {
-        setIsConnecting(true);
-        Alert.alert('Scanning', 'Searching for WindTrax fan...');
-        
-        const device = await BluetoothService.scanForDevice();
-        if (device) {
-          Alert.alert('Found Device', 'Connecting to WindTrax fan...');
-          await BluetoothService.connectToDevice(device.id);
-          setIsConnected(true);
-          Alert.alert('Success', 'Connected to WindTrax fan');
-          navigation.navigate('Fan');
-        } else {
-          Alert.alert('Error', 'WindTrax fan not found. Please make sure it is turned on and in range.');
-        }
-      } catch (error) {
-        console.error('Connection error:', error);
-        if (error.message.includes('not found')) {
-          Alert.alert('Error', 'Bluetooth module not found. Please check your app installation.');
-        } else {
-          Alert.alert('Error', 'Failed to connect to fan. Please try again.');
-        }
-      } finally {
-        setIsConnecting(false);
+    console.log('Scan button pressed. Starting scan...');
+    setScanning(true);
+    setScannedDevices([]);
+    Alert.alert('Scanning', 'Searching for Bluetooth devices...');
+
+    try {
+      const devices = await BluetoothService.scanForDevice();
+      console.log('Scan finished. Found devices:', devices);
+      setScannedDevices(devices);
+      if (devices.length === 0) {
+        Alert.alert('No Devices', 'No Bluetooth devices found.');
+      } else {
+        Alert.alert('Scan Complete', `Found ${devices.length} device(s). Select one to connect.`);
       }
+    } catch (error) {
+      console.error('Scan error:', error);
+      Alert.alert('Error', 'Failed to start scan.');
+    } finally {
+      setScanning(false);
+      console.log('Scan process ended.');
     }
   };
+
+  const handleDevicePress = async (deviceId) => {
+    console.log(`HomeScreen: handleDevicePress called with deviceId: ${deviceId}`);
+
+    if (isConnecting) return;
+
+    try {
+      setIsConnecting(true);
+      Alert.alert('Connecting', 'Attempting to connect to the selected device...');
+      const device = scannedDevices.find(d => d.id === deviceId);
+      console.log(`HomeScreen: Found device in scannedDevices:`, device);
+      
+      if (device) {
+         const connectedDevice = await BluetoothService.connectToDevice(deviceId);
+         setIsConnected(true);
+         Alert.alert('Success', `Connected to ${connectedDevice.name || connectedDevice.id}`);
+         navigation.navigate('Fan');
+      } else {
+          Alert.alert('Error', 'Device not found in scanned list.');
+      }
+
+    } catch (error) {
+      console.error('HomeScreen: Connection error in handleDevicePress:', error);
+      Alert.alert('Error', 'Failed to connect. Please try again.');
+      setIsConnected(false);
+    } finally {
+      setIsConnecting(false);
+    }
+  };
+
+  const renderDeviceItem = ({ item }) => (
+    <DeviceCard
+      name={item.name || 'Unknown Device'}
+      icon={'bluetooth'}
+      onPress={() => handleDevicePress(item.id)}
+      isConnected={isConnected && BluetoothService.device && BluetoothService.device.id === item.id}
+    />
+  );
 
   return (
     <SafeAreaView style={styles.container}>
@@ -73,17 +98,20 @@ const HomeScreen = ({ navigation }) => {
         <Text style={styles.title}>Smart Devices Dashboard</Text>
       </View>
       
-      <View style={styles.devicesGrid}>
-        {devices.map((device) => (
-          <DeviceCard
-            key={device.id}
-            name={device.name}
-            icon={device.icon}
-            onPress={() => handleDevicePress(device.id)}
-            isConnected={isConnected}
-          />
-        ))}
-      </View>
+      <TouchableOpacity 
+        style={styles.scanButton}
+        onPress={handleScanPress}
+        disabled={scanning || isConnecting}
+      >
+        <Text style={styles.scanButtonText}>{scanning ? 'Scanning...' : 'Scan for Devices'}</Text>
+      </TouchableOpacity>
+
+      <FlatList
+        data={scannedDevices}
+        renderItem={renderDeviceItem}
+        keyExtractor={item => item.id}
+        contentContainerStyle={styles.devicesList}
+      />
     </SafeAreaView>
   );
 };
@@ -140,6 +168,22 @@ const styles = StyleSheet.create({
   connectionStatus: {
     fontSize: 14,
     marginTop: 4,
+  },
+  scanButton: {
+    backgroundColor: '#3b82f6',
+    padding: 15,
+    borderRadius: 8,
+    alignItems: 'center',
+    margin: 16,
+  },
+  scanButtonText: {
+    color: 'white',
+    fontSize: 18,
+    fontWeight: 'bold',
+  },
+  devicesList: {
+    paddingHorizontal: 16,
+    paddingBottom: 16,
   },
 });
 
